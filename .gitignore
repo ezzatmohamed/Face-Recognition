@@ -1,4 +1,5 @@
 /opencv/*
 *.jpg
 .ipynb_checkpoints/
-
+test/*
+training/*
