@@ -48,8 +48,8 @@ def get_lbp_hist(grayscale_img):
 # Segment the image into 7x7 blocks,apply LBP algorithm on them, then Concatente all hitograms into one
 def segment_img(img):
     dim = img.shape
-    patch_width = 15
-    patch_height = 15
+    patch_width = 10
+    patch_height = 10
 
     histograms = []
 
@@ -94,32 +94,35 @@ def train_data():
     file.close()
 
 
-classes = []
-train_hist = []
-train_labels = []
+def read_data():
+    classes = []
+    train_hist = []
+    train_labels = []
 
-file = open("training.csv", "r")
-lines = file.readlines()
-for l in lines:
-    line = l.split(',')
+    file = open("training.csv", "r")
+    lines = file.readlines()
+    for l in lines:
+        line = l.split(',')
 
-    name = line[0]
-    hist = []
+        name = line[0]
+        hist = []
 
-    toint = int(float(line[2]))
-    if name not in classes:
-        classes.append(name)
+        toint = int(float(line[2]))
+        if name not in classes:
+            classes.append(name)
 
-    for i in range(1, len(line)):
-        toint = int(float(line[i]))
-        hist.append(toint)
-    train_hist.append(hist)
-    train_labels.append(name)
+        for i in range(1, len(line)):
+            toint = int(float(line[i]))
+            hist.append(toint)
+        train_hist.append(hist)
+        train_labels.append(name)
 
-file.close()
-train_hist = np.array(train_hist)
-train_labels = np.array(train_labels)
-classes = np.array(classes)
+    file.close()
+    train_hist = np.array(train_hist)
+    train_labels = np.array(train_labels)
+    classes = np.array(classes)
+
+    return classes, train_hist, train_labels
 
 
 def most_frequent(List):
@@ -185,38 +188,40 @@ def classify(img, face=-1):
     mini_dist = 1000000
     mini_class = -1
 
-    # distances = np.sum(np.abs(train_hist[:] - test_hist), axis=1)
-    # index = np.argmin(distances)
+    distances = np.sum(np.abs(train_hist[:] - test_hist), axis=1)
+    index = np.argmin(distances)
 
     # distances = np.delete(distances,index)
 
-    knn = []
-    for i in range(5):
-       distances = np.sum(np.abs(train_hist[:] - test_hist),axis=1)
-       index = np.argmin(distances)
-       knn.append(train_labels[index])
-       distances = np.delete(distances,index)
+    # knn = []
+    # for i in range(5):
+    #     distances = np.sum(np.abs(train_hist[:] - test_hist), axis=1)
+    #     index = np.argmin(distances)
+    #     knn.append(train_labels[index])
+    #     distances = np.delete(distances, index)
 
     # if mini_dist > 5500:
     #    return -1
 
     mini_class = train_labels[index]
-    # mini_class = most_frequent(knn)
+    #mini_class = most_frequent(knn)
 
     # print(mini_class)
     # print(distances[index])
     return mini_class
 
 
-
-def test_img(img,face=-1):
-
-    c = classify(img,face)
+def test_img(img, face=-1):
+    c = classify(img, face)
     if c != -1:
         return c
     else:
         return "No Match"
 
+
+#train_data()
+
+classes, train_hist, train_labels = read_data()
 
 cap = cv2.VideoCapture(0)
 
@@ -242,4 +247,3 @@ while 1:
         break
 cap.release()
 cv2.destroyAllWindows()
-
