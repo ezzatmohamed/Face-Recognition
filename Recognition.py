@@ -11,7 +11,6 @@ def face_detection(image):
     haar_classifier = cv2.CascadeClassifier('opencv/data/haarcascades/haarcascade_frontalface_default.xml')
 
     face = haar_classifier.detectMultiScale(image_gray, scaleFactor=1.3, minNeighbors=7)
-
     if len(face) != 0:
         (x, y, w, h) = face[0]
 
@@ -98,7 +97,6 @@ def read_data():
     classes = []
     train_hist = []
     train_labels = []
-
     file = open("training.csv", "r")
     lines = file.readlines()
     for l in lines:
@@ -219,7 +217,7 @@ def test_img(img, face=-1):
         return "No Match"
 
 
-#train_data()
+# train_data()
 
 classes, train_hist, train_labels = read_data()
 
@@ -238,7 +236,8 @@ while 1:
         c = test_img(img2, 1)
         # print(w*h)
         img = cv2.rectangle(img, (x, y), (x + w, y + h), (255, 0, 0), 2)
-        img = cv2.putText(img, c, (x, y), cv2.FONT_HERSHEY_PLAIN, 2.5, (0, 0, 255), 2)
+        img = cv2.putText(
+            img, c, (x, y), cv2.FONT_HERSHEY_PLAIN, 2.5, (0, 0, 255), 2)
 
     cv2.imshow('Face Recognition', img)
 
