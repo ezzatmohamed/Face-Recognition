@@ -95,7 +95,7 @@ display_all(Eigen_faces)
 
 def display_reconstruction(images):
     fig4, axes_array = plt.subplots(2, 2)
-    fig4.set_size_inches(5, 5)
+    fig4.set_size_inches(5, 5)  
     count = 0
     for x in range(2):
         for y in range(2):
