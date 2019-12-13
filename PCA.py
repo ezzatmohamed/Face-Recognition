@@ -1,31 +1,52 @@
 from tkinter import Toplevel, Label
-import matplotlib.pyplot as plt #plot import
-import matplotlib.colors  #color import
-import numpy as np  #importing numpy
-from PIL import Image #importing PIL to read all kind of images
+import matplotlib.pyplot as plt  # plot import
+import matplotlib.colors  # color import
+import numpy as np  # importing numpy
+from PIL import Image  # importing PIL to read all kind of images
 from PIL import ImageTk
 import glob
 import cv2
+import os
+import csv
+
+
+
+def face_detection(image):
+    image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    haar_classifier = cv2.CascadeClassifier('opencv/data/haarcascades/haarcascade_frontalface_default.xml')
+
+    face = haar_classifier.detectMultiScale(image_gray, scaleFactor=1.3, minNeighbors=7)
+    if len(face) != 0:
+        (x, y, w, h) = face[0]
+
+        dim = (100, 100)
+        #img = image_gray[y:y + w, x:x + h]
+        img = image[y:y + w, x:x + h]
+        resized = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
+        return resized, face[0]
+    else:
+        return -1
 
 def displaying_faces_grid(displaying_faces):
-    size=100, 100
+    size = 100, 100
     fig1, axes_array = plt.subplots(2, 2)
-    fig1.set_size_inches(5,5)
-    count=0
+    fig1.set_size_inches(5, 5)
+    count = 0
     for x in range(2):
-        for y in range (2):
+        for y in range(2):
             print(count)
             print(displaying_faces[count])
 
             draw_image = displaying_faces[count]
             draw_image.thumbnail(size)
-            draw_image= np.asarray(draw_image,dtype=float)/255.0
-      
-            image_plot=axes_array[x][y].imshow(draw_image,cmap=plt.cm.gray)
+            draw_image = np.asarray(draw_image, dtype=float) / 255.0
+
+            image_plot = axes_array[x][y].imshow(draw_image, cmap=plt.cm.gray)
             axes_array[x][y].axis('off')
-            count=count+1
+            count = count + 1
     fig1.canvas.set_window_title('Displaying all faces')
     plt.show()
+
 
 def display_mean_face(face_array):
     print(face_array.shape)
@@ -37,6 +58,7 @@ def display_mean_face(face_array):
     plt.show()
     return mean
 
+
 def performing_pca(face_array):
     print("MEAN FACE DISPLAY")
     mean = display_mean_face(face_array)
@@ -47,7 +69,7 @@ def performing_pca(face_array):
         flatten_Array.append(flat_Array)
     flatten_Array = np.asarray(flatten_Array)
     mean = mean.flatten()
-    return mean,flatten_Array,
+    return mean, flatten_Array,
 
 
 def display_all(images):
@@ -62,83 +84,112 @@ def display_all(images):
             count = count + 1
     fig3.canvas.set_window_title('Eigen Faces')
     plt.show()
+
+
 def reading_faces_and_displaying():
     face_array = []
+    train_labels = []
     displaying_faces = []
     dim = (100, 100)
-    
-    for face_images in glob.glob('Train\*.jpg'): # assuming jpg
-        face_image=Image.open(face_images)
-        face_image = face_image.resize((425,425)).convert('L')
-        
-        displaying_faces.append(face_image)
-        face_image = np.asarray(face_image,dtype=float)/255.0
-        face_array.append(face_image)
+
+    # Convert it to jpg
+    count = 0
+    for person in os.listdir("Train"):
+        for image in os.listdir('Train/' + person):
+            img_path = 'Train/' + person + '/' + image
+            img = cv2.imread(img_path)
+    #        result = face_detection(img)
+    #        if result == -1:
+    #            os.remove(img_path)
+    #            continue
+    #        img = result[0]
+            os.remove(img_path)
+            cv2.imwrite("Train/"+person+"/im" + str(count) + ".jpg", img)
+            count+=1
+    #==========================
+
+    for person in os.listdir("Train"):
+        for face_images in glob.glob('Train/' + person + '/*.jpg'):
+            face_image = Image.open(face_images)
+            res = face_detection(np.asarray(face_image))
+            if res == -1:
+                print(person)
+                continue
+            face_image = Image.fromarray(res[0])
+            face_image = face_image.resize((425, 425)).convert('L')
+            displaying_faces.append(face_image)
+            face_image = np.asarray(face_image, dtype=float) / 255.0
+            face_array.append(face_image)
+            train_labels.append(person)
+
+    print(train_labels)
+    # print(face_array)
     print("DISPLAYING ORIGINAL FACES")
-    displaying_faces_grid(displaying_faces)
-    face_array=np.asarray(face_array)
-    
+    # displaying_faces_grid(displaying_faces)
+    face_array = np.asarray(face_array)
+    train_labels = np.asarray(train_labels)
     print(face_array.shape)
 
-    return face_array
-
-face_array=reading_faces_and_displaying()
-mean,flatten_Array=performing_pca(face_array) # eigen_values,eigen_vectors
-substract_mean_from_original = np.subtract(flatten_Array, mean)
-U, s, V = np.linalg.svd(substract_mean_from_original, full_matrices=False)
-Eigen_faces=[]
-for x in range(V.shape[0]):
-    fig=np.reshape(V[x],(425,425))
-    Eigen_faces.append(fig)
-print("EIGEN FACES")
-display_all(Eigen_faces)
+    return face_array, train_labels
 
 def display_reconstruction(images):
     fig4, axes_array = plt.subplots(2, 2)
-    fig4.set_size_inches(5, 5)  
+    fig4.set_size_inches(5, 5)
     count = 0
     for x in range(2):
         for y in range(2):
-            draw_image = np.reshape(images[count,:],(425,425))
+            draw_image = np.reshape(images[count, :], (425, 425))
             image_plot = axes_array[x][y].imshow(draw_image, cmap=plt.cm.gray)
             axes_array[x][y].axis('off')
             count = count + 1
-    fig4.canvas.set_window_title('Reconstructed faces for k='+str(k))
-    plt.show()
+    # fig4.canvas.set_window_title('Reconstructed faces for k=' + str(k))
+    # plt.show()
 
-def reconstructing_faces(k,mean,substract_mean_from_original,V):
-    weights=np.dot(substract_mean_from_original, V.T)
-    reconstruction = mean + np.dot(weights[:,0:k], V[0:k,:])
+
+def reconstructing_faces(k, mean, substract_mean_from_original, V):
+    weights = np.dot(substract_mean_from_original, V.T)
+    reconstruction = mean + np.dot(weights[:, 0:k], V[0:k, :])
     display_reconstruction(reconstruction)
-    
-#k=2
-#print("RECONSTRUCTING FACES FOR K=2")
-#reconstructing_faces(k,mean,substract_mean_from_original,V)
-#k=5
-#print("RECONSTRUCTING FACES FOR K=5")
-#reconstructing_faces(k,mean,substract_mean_from_original,V)
-#k=15
-#print("RECONSTRUCTING FACES FOR K=15")
-#reconstructing_faces(k,mean,substract_mean_from_original,V)
-k=25
-reconstructing_faces(k,mean,substract_mean_from_original,V)
 
-def class_face(k,test_from_mean,test_flat_images,V,substract_mean_from_original,face_array):
-    eigen_weights = np.dot(V[:k, :],substract_mean_from_original.T)
+def write_file(name,V):
+    dim = V.shape
+    file = open(name, "w")
+    csvwriter = csv.writer(file)
+    for i in range(dim[0]):
+        row = []
+        for j in range(dim[1]):
+            row.append(V[i][j])
+        csvwriter.writerow(row)
+    file.close()
+# k=2
+# print("RECONSTRUCTING FACES FOR K=2")
+# reconstructing_faces(k,mean,substract_mean_from_original,V)
+# k=5
+# print("RECONSTRUCTING FACES FOR K=5")
+# reconstructing_faces(k,mean,substract_mean_from_original,V)
+# k=15
+# print("RECONSTRUCTING FACES FOR K=15")
+# reconstructing_faces(k,mean,substract_mean_from_original,V)
+
+def class_face(k, test_from_mean, test_flat_images, V, substract_mean_from_original, train_labels):
+    eigen_weights = np.dot(V[:k, :], substract_mean_from_original.T)
     threshold = 6000
     for i in range(test_from_mean.shape[0]):
-        test_weight = np.dot(V[:k, :],test_from_mean[i:i + 1,:].T)
+        test_weight = np.dot(V[:k, :], test_from_mean[i:i + 1, :].T)
         distances_euclidian = np.sum((eigen_weights - test_weight) ** 2, axis=0)
         image_closest = np.argmin(np.sqrt(distances_euclidian))
+        classification = train_labels[image_closest]
         fig, axes_array = plt.subplots(1, 2)
         fig.set_size_inches(5, 5)
-        to_plot=np.reshape(test_flat_images[i,:], (425,425))
-        axes_array[0].imshow(to_plot, cmap=plt.cm.gray)
-        axes_array[0].axis('off')
-        if (distances_euclidian[image_closest] <= threshold):
-            axes_array[1].imshow(face_array[image_closest,:,:], cmap=plt.cm.gray)
-        axes_array[1].axis('off')
-    plt.show()
+        to_plot = np.reshape(test_flat_images[i, :], (425, 425))
+        #axes_array[0].imshow(to_plot, cmap=plt.cm.gray)
+        #axes_array[0].axis('off')
+        #if (distances_euclidian[image_closest] <= threshold):
+        #    axes_array[1].imshow(face_array[image_closest, :, :], cmap=plt.cm.gray)
+        #axes_array[1].axis('off')
+        print(classification)
+    #plt.show()
+
 
 def returning_vector(test_images):
     flat_test_Array = []
@@ -148,42 +199,118 @@ def returning_vector(test_images):
     flat_test_Array = np.asarray(flat_test_Array)
     return flat_test_Array
 
+
 def reading_test_images():
-    test_images=[]
-    for images in glob.glob('Test\*.jpg'):  # assuming jpg
+    # Convert it to jpg
+    count = 0
+    for image in os.listdir('Test'):
+        img_path = 'Test/' + image
+        img = cv2.imread(img_path)
+
+        os.remove(img_path)
+        cv2.imwrite("Test/"+"im" + str(count) + ".jpg", img)
+        count += 1
+    # ==========================
+
+    test_images = []
+    for images in glob.glob('Test/*.jpg'):  # assuming jpg
         test_faces = Image.open(images)
-        test_faces = test_faces.resize((425,425)).convert('L')
+        res = face_detection(np.asarray(test_faces))
+        if res == -1:
+            continue
+        test_faces = Image.fromarray(res[0])
+
+        test_faces = test_faces.resize((425, 425)).convert('L')
         test_faces = np.asarray(test_faces, dtype=float) / 255.0
-        test=(425,425,3)
+        test = (425, 425, 3)
         if test_faces.shape == test:
-            test_faces=test_faces[:,:,0]
+            test_faces = test_faces[:, :, 0]
             test_images.append(test_faces)
         else:
             test_images.append(test_faces)
     print(len(test_images))
-    flat_test_Array=returning_vector(test_images)
-    test_images=np.asarray(test_images)
-    return flat_test_Array,test_images
+    flat_test_Array = returning_vector(test_images)
+    test_images = np.asarray(test_images)
+    return flat_test_Array, test_images
 
-test_flat_images,test_images=reading_test_images()
-test_from_mean=np.subtract(test_flat_images,mean)
+def Train():
+    face_array, train_labels = reading_faces_and_displaying()
+    mean, flatten_Array = performing_pca(face_array)  # eigen_values,eigen_vectors
 
-k=25
-print("FACES FOR K=25")
-class_face(k,test_from_mean,test_flat_images,V,substract_mean_from_original,face_array)
+    substract_mean_from_original = np.subtract(flatten_Array, mean)
+    _, _, V = np.linalg.svd(substract_mean_from_original, full_matrices=False)
+    Eigen_faces = []
+    for x in range(V.shape[0]):
+        fig = np.reshape(V[x], (425, 425))
+        Eigen_faces.append(fig)
 
-train_list=[]
-for images in glob.glob('Train\*.jpg'):
-    print("LOL")
-    a1=images[:7]
-    _,a1 = a1.split('\\')
-    train_list.append(a1)
-train_array=np.asarray(train_list)
-print("TRAIN IMAGES", train_list)
-test_list=[]
-for images in glob.glob('Test\*.jpg'):
-    a1=images[:6]
-    _,a1 = a1.split('\\')
-    test_list.append(a1)
-test_array=np.asarray(test_list)
-print("TEST IMAGES ", test_list)
+    k = 25
+    reconstructing_faces(k, mean, substract_mean_from_original, V)
+    write_file("V.csv", V)
+    write_file("original.csv", substract_mean_from_original)
+
+    file = open("labels.csv", "w")
+    csvwriter = csv.writer(file)
+    for i in range(len(train_labels)):
+        row = [train_labels[i]]
+        csvwriter.writerow(row)
+    file.close()
+
+    file = open("mean.csv", "w")
+    csvwriter = csv.writer(file)
+    for i in range(len(mean)):
+        row = [mean[i]]
+        csvwriter.writerow(row)
+    file.close()
+
+    print(mean.shape)
+
+
+def Read_File(name):
+
+    file = open(name, "r")
+    lines = file.readlines()
+    V = []
+
+    for l in lines:
+        line = l.split(',')
+        temp = []
+        for i in range(len(line)):
+            toint = float(line[i])
+            temp.append(toint)
+        V.append(temp)
+
+    file.close()
+
+    return np.asarray(V)
+
+def Read_Data():
+    substract_mean_from_original = Read_File("original.csv")
+    V = Read_File("V.csv")
+
+    train_labels = []
+    file = open("labels.csv", "r")
+    lines = file.readlines()
+    for l in lines:
+        train_labels.append(l)
+
+    mean = []
+    file = open("mean.csv", "r")
+    lines = file.readlines()
+    for l in lines:
+        mean.append(float(l))
+
+    return np.asarray(V),np.asarray(substract_mean_from_original),np.asarray(mean),np.asarray(train_labels)
+
+
+# Train()
+#
+V,substract_mean_from_original,mean,train_labels = Read_Data()
+
+
+test_flat_images, test_images = reading_test_images()
+test_from_mean = np.subtract(test_flat_images, mean)
+
+k = 25
+
+class_face(k, test_from_mean, test_flat_images, V, substract_mean_from_original, train_labels)
