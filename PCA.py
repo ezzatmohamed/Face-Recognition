@@ -219,7 +219,6 @@ def reading_test_images():
         if res == -1:
             continue
         test_faces = Image.fromarray(res[0])
-
         test_faces = test_faces.resize((425, 425)).convert('L')
         test_faces = np.asarray(test_faces, dtype=float) / 255.0
         test = (425, 425, 3)
@@ -302,15 +301,69 @@ def Read_Data():
 
     return np.asarray(V),np.asarray(substract_mean_from_original),np.asarray(mean),np.asarray(train_labels)
 
+def Recognize(image,V, substract_mean_from_original, mean, train_labels ):
 
-# Train()
+    test_images = []
+
+    test_faces = Image.fromarray(image)
+    test_faces = test_faces.resize((425, 425)).convert('L')
+    test_faces = np.asarray(test_faces, dtype=float) / 255.0
+    test = (425, 425, 3)
+    if test_faces.shape == test:
+        test_faces = test_faces[:, :, 0]
+        test_images.append(test_faces)
+    else:
+        test_images.append(test_faces)
+
+    test_flat_images = returning_vector(test_images)
+
+    test_images = np.asarray(test_images)
+
+    test_from_mean = np.subtract(test_flat_images, mean)
+
+    k = 25
+
+    class_face(k, test_from_mean, test_flat_images, V, substract_mean_from_original, train_labels)
+
+
+Train()
+
+V, substract_mean_from_original, mean, train_labels = Read_Data()
+cap = cv2.VideoCapture(0)
+
+while 1:
+    ret, img = cap.read()
+    res = face_detection(img)
+
+    if res != -1:
+        img2 = res[0]
+        face = res[1]
+        (x, y, w, h) = face
+        # if ( w*h < 30000):
+        #    continue
+        #c = test_img(img2, 1)
+        Recognize(img2,V, substract_mean_from_original, mean, train_labels)
+        # print(w*h)
+        img = cv2.rectangle(img, (x, y), (x + w, y + h), (255, 0, 0), 2)
+        #img = cv2.putText(img, c, (x, y), cv2.FONT_HERSHEY_PLAIN, 2.5, (0, 0, 255), 2)
+
+    cv2.imshow('Face Recognition', img)
+
+    k = cv2.waitKey(30) & 0xff
+    if k == 27:
+        break
+cap.release()
+cv2.destroyAllWindows()
 #
-V,substract_mean_from_original,mean,train_labels = Read_Data()
+
+# img = cv2.imread("Test/1.jpg")
+# Recognize(img)
 
 
-test_flat_images, test_images = reading_test_images()
-test_from_mean = np.subtract(test_flat_images, mean)
-
-k = 25
-
-class_face(k, test_from_mean, test_flat_images, V, substract_mean_from_original, train_labels)
+# V,substract_mean_from_original,mean,train_labels = Read_Data()
+# test_flat_images, test_images = reading_test_images()
+# test_from_mean = np.subtract(test_flat_images, mean)
+#
+# k = 25
+#
+# class_face(k, test_from_mean, test_flat_images, V, substract_mean_from_original, train_labels)
