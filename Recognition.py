@@ -2,11 +2,32 @@ import numpy as np
 import cv2
 import os
 import math
+from detection import *
 import csv
 import matplotlib.pyplot as plt
 
 
 def face_detection(image):
+    image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    #haar_classifier = cv2.CascadeClassifier('opencv/data/haarcascades/haarcascade_frontalface_default.xml')
+    #face = haar_classifier.detectMultiScale(image_gray, scaleFactor=1.3, minNeighbors=7)
+    face = segment(image)
+
+    if face != -1:
+        x = face[0]
+        y = face[1]
+        w = face[2]
+        h = face[3]
+
+        arr = [x,y,w,h]
+        dim = (100, 100)
+        img = image_gray[y:y + w, x:x + h]
+        resized = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
+        return resized, arr
+    else:
+        return -1
+
+def face_detection2(image):
     image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     haar_classifier = cv2.CascadeClassifier('opencv/data/haarcascades/haarcascade_frontalface_default.xml')
 
@@ -80,7 +101,7 @@ def train_data():
         for image in os.listdir('training/' + person):
             img_path = 'training/' + person + '/' + image
             img = cv2.imread(img_path)
-            result = face_detection(img)
+            result = face_detection2(img)
             if result == -1:
                 continue
             else:
@@ -125,59 +146,6 @@ def read_data():
     return classes, train_hist, train_labels
 
 
-def most_frequent(List):
-    counter = 0
-    num = List[0]
-
-    for i in List:
-        curr_frequency = List.count(i)
-        if (curr_frequency > counter):
-            counter = curr_frequency
-            num = i
-
-    if counter == 1:
-        return -1
-    return num
-
-
-def Mean(img, face=-1):
-    if face == -1:
-        img, _ = face_detection(img)
-
-    test_hist = segment_img(img)
-
-    mini_dist = 1000000
-    mini_class = -1
-
-    m = np.sum(np.abs(train_hist[:] - test_hist), axis=1)
-    # print(m[np.array(train_labels) == str("Nancy")])
-    means = []
-
-    # train_labels = np.array(train_labels)
-
-    for person in classes:
-        imgs = m[np.array(train_labels) == str(person)]
-        # count = len(imgs)
-        # m_single = np.sum(imgs)
-        means.append(np.average(imgs))
-
-    means = np.array(means)
-
-    index = np.argmin(means)
-
-    # print(index)
-    # print(classes[index])
-
-    return classes[index]
-    # index = np.argmin(np.sum(np.abs(train_hist[:] - test_hist),axis=1))
-
-    # if mini_dist > 5500:
-    #    return -1
-
-    # mini_class = train_labels[index]
-    # eturn mini_class
-
-
 # Apply Nearest Neighbour Algorithm for test image
 def classify(img, face=-1):
     if face == -1:
@@ -190,25 +158,11 @@ def classify(img, face=-1):
 
     distances = np.sum(np.abs(train_hist[:] - test_hist), axis=1)
     index = np.argmin(distances)
-
-    # distances = np.delete(distances,index)
-
-    # knn = []
-    # for i in range(5):
-    #     distances = np.sum(np.abs(train_hist[:] - test_hist), axis=1)
-    #     index = np.argmin(distances)
-    #     knn.append(train_labels[index])
-    #     distances = np.delete(distances, index)
-
-    # if mini_dist > 5500:
-    #    return -1
+    x = (np.min(distances) /256)
 
     mini_class = train_labels[index]
-    #mini_class = most_frequent(knn)
-
-    # print(mini_class)
-    # print(distances[index])
-    return mini_class
+    print(mini_class + " : " +str(x))
+    return mini_class + " : " +str(x)
 
 
 def test_img(img, face=-1):
@@ -222,7 +176,10 @@ def test_img(img, face=-1):
 #train_data()
 
 classes, train_hist, train_labels = read_data()
-
+print(classes)
+print(train_labels)
+#while(1):
+#    pass
 cap = cv2.VideoCapture(0)
 
 while 1:
