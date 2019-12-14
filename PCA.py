@@ -200,6 +200,7 @@ def class_face(k, test_from_mean, test_flat_images, V, substract_mean_from_origi
         test_weight = np.dot(V[:k, :], test_from_mean[i:i + 1, :].T)
         distances_euclidian = np.sum((eigen_weights - test_weight) ** 2, axis=0)
         image_closest = np.argmin(np.sqrt(distances_euclidian))
+        print(distances_euclidian[image_closest])
         classification = train_labels[image_closest]
         fig, axes_array = plt.subplots(1, 2)
         fig.set_size_inches(5, 5)
@@ -350,16 +351,22 @@ def Recognize(image,V, substract_mean_from_original, mean, train_labels ):
 # Train()
 
 V, substract_mean_from_original, mean, train_labels = Read_Data()
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture("12.MOV")
 
-while 1:
+while cap.isOpened():
     ret, img = cap.read()
     res = face_detection2(img)
-
+    ##############################################  
+    (h, w) = img.shape[:2]
+    center = (w / 2, h / 2)
+    scale = 1.0
+    M = cv2.getRotationMatrix2D(center, 270, scale)
+    img = cv2.warpAffine(img, M, (w, h))
+    ##############################################
     if res != -1:
         img2 = res[0]
         face = res[1]
-        print(face)
+        #print(face)
         (x, y, w, h) = face
         # if ( w*h < 30000):
         #    continue
@@ -378,14 +385,14 @@ cap.release()
 cv2.destroyAllWindows()
 
 
-# img = cv2.imread("1.jpeg")
-# img = face_detection(img)
-# if img != -1:
-#     img = img[0]    
-#     # cv2.imwrite("res.jpg",img)
-#     name = Recognize(img,V, substract_mean_from_original, mean, train_labels)
-#     print(name)
-# else:
-#     print("sorry :(")
+img = cv2.imread("2.jpg")
+img = face_detection(img)
+if img != -1:
+    img = img[0]      
+    # cv2.imwrite("res.jpg",img)
+    name = Recognize(img,V, substract_mean_from_original, mean, train_labels)
+    print(name)
+else:
+    print("sorry :(")
 
 

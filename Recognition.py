@@ -2,15 +2,38 @@ import numpy as np
 import cv2
 import os
 import math
+from detection import *
 import csv
 import matplotlib.pyplot as plt
+import urllib.request
 
 
 def face_detection(image):
     image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    #haar_classifier = cv2.CascadeClassifier('opencv/data/haarcascades/haarcascade_frontalface_default.xml')
+    #face = haar_classifier.detectMultiScale(image_gray, scaleFactor=1.3, minNeighbors=7)
+    face = segment(image)
+
+    if face != -1:
+        x = face[0]
+        y = face[1]
+        w = face[2]
+        h = face[3]
+
+        arr = [x,y,w,h]
+        dim = (100, 100)
+        img = image_gray[y:y + w, x:x + h]
+        resized = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
+        return resized, arr
+    else:
+        return -1
+
+def face_detection2(image):
+    image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     haar_classifier = cv2.CascadeClassifier('opencv/data/haarcascades/haarcascade_frontalface_default.xml')
 
     face = haar_classifier.detectMultiScale(image_gray, scaleFactor=1.3, minNeighbors=7)
+
     if len(face) != 0:
         (x, y, w, h) = face[0]
 
@@ -50,21 +73,21 @@ def segment_img(img):
     patch_width = 10
     patch_height = 10
 
-    histograms = []
-
+    histograms = np.zeros(20736)
+    count = 0
     for x in range(0, dim[0], patch_width):
         for y in range(0, dim[1], patch_height):
 
             if (patch_width + x >= dim[0] or patch_width + y >= dim[1]):
                 continue
-            patch = img[x:x + patch_width, y:y + patch_height]
+            patch = img[x:x + patch_width, y:y + patch_height].copy()
 
-            histogram = get_lbp_hist(patch)
-            histograms.append(histogram)
+            histograms[count:count+256] = get_lbp_hist(patch)   
+            count+=256
 
-    histo = np.concatenate([h for h in histograms])
+    #histo = np.concatenate(histograms)
 
-    return histo
+    return histograms
 
 
 def train_data():
@@ -79,7 +102,7 @@ def train_data():
         for image in os.listdir('training/' + person):
             img_path = 'training/' + person + '/' + image
             img = cv2.imread(img_path)
-            result = face_detection(img)
+            result = face_detection2(img)
             if result == -1:
                 continue
             else:
@@ -97,6 +120,7 @@ def read_data():
     classes = []
     train_hist = []
     train_labels = []
+
     file = open("training.csv", "r")
     lines = file.readlines()
     for l in lines:
@@ -123,89 +147,30 @@ def read_data():
     return classes, train_hist, train_labels
 
 
-def most_frequent(List):
-    counter = 0
-    num = List[0]
-
-    for i in List:
-        curr_frequency = List.count(i)
-        if (curr_frequency > counter):
-            counter = curr_frequency
-            num = i
-
-    if counter == 1:
-        return -1
-    return num
-
-
-def Mean(img, face=-1):
-    if face == -1:
-        img, _ = face_detection(img)
-
-    test_hist = segment_img(img)
-
-    mini_dist = 1000000
-    mini_class = -1
-
-    m = np.sum(np.abs(train_hist[:] - test_hist), axis=1)
-    # print(m[np.array(train_labels) == str("Nancy")])
-    means = []
-
-    # train_labels = np.array(train_labels)
-
-    for person in classes:
-        imgs = m[np.array(train_labels) == str(person)]
-        # count = len(imgs)
-        # m_single = np.sum(imgs)
-        means.append(np.average(imgs))
-
-    means = np.array(means)
-
-    index = np.argmin(means)
-
-    # print(index)
-    # print(classes[index])
-
-    return classes[index]
-    # index = np.argmin(np.sum(np.abs(train_hist[:] - test_hist),axis=1))
-
-    # if mini_dist > 5500:
-    #    return -1
-
-    # mini_class = train_labels[index]
-    # eturn mini_class
-
-
 # Apply Nearest Neighbour Algorithm for test image
 def classify(img, face=-1):
     if face == -1:
         img, _ = face_detection(img)
 
     test_hist = segment_img(img)
-
+    #print(test_hist)
     mini_dist = 1000000
     mini_class = -1
 
     distances = np.sum(np.abs(train_hist[:] - test_hist), axis=1)
+    # distances = np.sum( (train_hist[:] - test_hist)**2, axis=1)
+    distances = np.sqrt( distances )
+
     index = np.argmin(distances)
-
-    # distances = np.delete(distances,index)
-
-    # knn = []
-    # for i in range(5):
-    #     distances = np.sum(np.abs(train_hist[:] - test_hist), axis=1)
-    #     index = np.argmin(distances)
-    #     knn.append(train_labels[index])
-    #     distances = np.delete(distances, index)
-
-    # if mini_dist > 5500:
-    #    return -1
+    x = (   distances[index]  /256)
 
     mini_class = train_labels[index]
-    #mini_class = most_frequent(knn)
+    
+    if x > 0.31 :
+        print("Error : "+mini_class + " : " +str(x))
+        return -1
 
-    # print(mini_class)
-    # print(distances[index])
+    print("Correct : "+mini_class + " : " +str(x))
     return mini_class
 
 
@@ -216,17 +181,44 @@ def test_img(img, face=-1):
     else:
         return "No Match"
 
+def live_stream():
+    URL = "http://192.168.1.4:8888/video"
+    while True:    
+        img_arr = np.array(bytearray(urllib.request.urlopen(URL).read()),dtype=np.uint8)
+        img = cv2.imdecode(img_arr,-1)
+        cv2.imshow('IPWebcam',img)
+        print(1)
+        if cv2.waitKey(1):
+            break
 
-# train_data()
+def rotate(img,angle):
+    (h, w) = img.shape[:2]
+    center = (w / 2, h / 2)
+    scale = 1.0
+    M = cv2.getRotationMatrix2D(center, angle, scale)
+    img = cv2.warpAffine(img, M, (w, h))
+    return img
 
-classes, train_hist, train_labels = read_data()
+train_data()
 
-cap = cv2.VideoCapture(0)
+classes, train_hist, train_labels =read_data()
 
-while 1:
+# live_stream()
+
+
+
+cap = cv2.VideoCapture("11.mp4")
+
+while (cap.isOpened()):
     ret, img = cap.read()
-    res = face_detection(img)
-
+    #############################################
+    img = rotate(img,0)
+    ##############################################
+    try:
+        res = face_detection2(img)
+    except:
+        break
+    #res = -1
     if res != -1:
         img2 = res[0]
         face = res[1]
@@ -236,13 +228,25 @@ while 1:
         c = test_img(img2, 1)
         # print(w*h)
         img = cv2.rectangle(img, (x, y), (x + w, y + h), (255, 0, 0), 2)
-        img = cv2.putText(
-            img, c, (x, y), cv2.FONT_HERSHEY_PLAIN, 2.5, (0, 0, 255), 2)
+        img = cv2.putText(img, c, (x, y), cv2.FONT_HERSHEY_PLAIN, 2.5, (0, 0, 255), 2)
 
+    else:
+        print("no")
     cv2.imshow('Face Recognition', img)
 
     k = cv2.waitKey(30) & 0xff
-    if k == 27:
+    if k == 27: 
         break
 cap.release()
 cv2.destroyAllWindows()
+
+
+img = cv2.imread("1.jpg")
+img = face_detection2(img)
+if img != -1:
+    img = img[0]    
+    # cv2.imwrite("res.jpg",img)
+    name = test_img(img, 1)
+    print(name)
+else:
+    print("sorry :(")
