@@ -260,9 +260,13 @@ def rotate(img,angle):
     img = cv2.warpAffine(img, M, (w, h))
     return img
 
-def get_video(name):
+def get_video(name=-1):
 
-    cap = cv2.VideoCapture("Test/"+name)
+    if name != -1:
+        cap = cv2.VideoCapture("Test/"+name)
+    else:
+        cap = cv2.VideoCapture(0)
+
 
     while (cap.isOpened()):
         ret, img = cap.read()
@@ -306,10 +310,11 @@ classes, train_hist, train_labels =read_data()
 t = int(sys.argv[1])
 if t == 1:
     live_stream()
-else:
+elif t == 2:
     name = sys.argv[2]
     get_video(name)
-
+elif t== 3:
+    get_video()
 
 # img = cv2.imread("1.jpg")
 # img = face_detection2(img)

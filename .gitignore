@@ -3,4 +3,5 @@
 test/*
 Test/*
 training/*
-
+.idea/*
+.vscode/*
