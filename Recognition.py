@@ -6,8 +6,8 @@ from detection import *
 import csv
 import matplotlib.pyplot as plt
 import urllib.request
-
-
+from numba import jit
+import sys
 
 def face_detection(image):
     image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -89,7 +89,7 @@ def get_lbp_hist(grayscale_img):
     return lbp  # <LBP histogram which is a list of 256 numbers>
 
 
-# Segment the image into 7x7 blocks,apply LBP algorithm on them, then Concatente all hitograms into one
+# Segment the image into 10x10 blocks,apply LBP algorithm on them, then Concatente all hitograms into one
 def segment_img(img):
     dim = img.shape
     patch_width = 10
@@ -124,6 +124,8 @@ def train_data():
         for image in os.listdir('training/' + person):
             img_path = 'training/' + person + '/' + image
             img = cv2.imread(img_path)
+            dim = img.shape
+            img = cv2.resize(img, ( int(dim[1]*0.3),int(dim[0]*0.3)))
             result = face_detection2(img)
             if result == -1:
                 continue
@@ -188,9 +190,9 @@ def classify(img, face=-1):
 
     mini_class = train_labels[index]
     
-    # if x > 0.31 :
-    #     print("Error : "+mini_class + " : " +str(x))
-    #     return -1
+    if x > 0.32 :
+        print("Error : "+mini_class + " : " +str(x))
+        return -1
 
     print("Correct : "+mini_class + " : " +str(x))
     return mini_class
@@ -204,13 +206,49 @@ def test_img(img, face=-1):
         return "No Match"
 
 def live_stream():
-    URL = "http://192.168.1.4:8888/video"
-    while True:    
-        img_arr = np.array(bytearray(urllib.request.urlopen(URL).read()),dtype=np.uint8)
-        img = cv2.imdecode(img_arr,-1)
-        cv2.imshow('IPWebcam',img)
-        print(1)
-        if cv2.waitKey(1):
+    url="http://"+ip+":8080/shot.jpg"
+
+    while True:
+
+        # Use urllib to get the image from the IP camera
+        imgResponse = urllib.request.urlopen(url)
+
+        # Numpy to convert into a array
+        imgNp = np.array(bytearray(imgResponse.read()),dtype=np.uint8)
+
+        # Decode the array to OpenCV usable format
+        img = cv2.imdecode(imgNp,-1)
+        dim = img.shape
+        img = cv2.resize(img, (dim[1]*0.3,dim[0]*0.3))
+
+        # put the image on screen
+
+        #############################################
+        # img = rotate(img,270)
+        ##############################################
+        try:
+            res = face_detection3(img)
+        except:
+            break
+        # res = -1
+        if res != -1:
+            img2 = res[0]
+            face = res[1]
+            (x, y, w, h) = face
+
+            c = test_img(img2, 1)
+            # print(w*h)
+            img = cv2.rectangle(img, (x, y), (x + w, y + h), (255, 0, 0), 2)
+            img = cv2.putText(img, c, (x, y+h), cv2.FONT_HERSHEY_PLAIN, 2.5, (0, 0, 255), 2)
+
+        else:
+            print("no")
+        cv2.imshow('Face Recognition', img)
+        # cv2.imshow("a",img)
+
+        # Program closes if q is pressed
+        k = cv2.waitKey(30) & 0xff
+        if k == 27: 
             break
 
 def rotate(img,angle):
@@ -221,55 +259,66 @@ def rotate(img,angle):
     img = cv2.warpAffine(img, M, (w, h))
     return img
 
+def get_video(name=-1):
+
+    if name != -1:
+        cap = cv2.VideoCapture("Test/"+name)
+    else:
+        cap = cv2.VideoCapture(0)
+
+
+    while (cap.isOpened()):
+        ret, img = cap.read()
+        dim = img.shape
+        img = cv2.resize(img, ( int(dim[1]*0.3),int(dim[0]*0.3)))
+            
+        #############################################
+        # img = rotate(img,270)
+        ##############################################
+        try:
+            res = face_detection3(img)
+        except:
+            break
+        # res = -1
+        if res != -1:
+            img2 = res[0]
+            face = res[1]
+            (x, y, w, h) = face
+
+            c = test_img(img2, 1)
+            # print(w*h)
+            img = cv2.rectangle(img, (x, y), (x + w, y + h), (255, 0, 0), 2)
+            img = cv2.putText(img, c, (x, y+h), cv2.FONT_HERSHEY_PLAIN, 1.3, (0, 0, 255), 2)
+
+        else:
+            print("no")
+        cv2.imshow('Face Recognition', img)
+
+        k = cv2.waitKey(30) & 0xff
+        if k == 27: 
+            break
+    cap.release()
+    cv2.destroyAllWindows()
+
 # train_data()
 
 classes, train_hist, train_labels =read_data()
 
-# live_stream()
+t = int(sys.argv[1])
+if t == 1:
+    live_stream()
+elif t == 2:
+    name = sys.argv[2]
+    get_video(name)
+elif t== 3:
+    get_video()
 
-
-cap = cv2.VideoCapture("Test/16.MOV")
-
-while (cap.isOpened()):
-    ret, img = cap.read()
-    #############################################
-    img = rotate(img,270)
-    ##############################################
-    try:
-        res = face_detection3(img)
-    except:
-        break
-    #res = -1
-    if res != -1:
-        img2 = res[0]
-        face = res[1]
-        (x, y, w, h) = face
-        # h-=70
-        # w-=10
-        # if ( w*h < 30000):
-        #    continue
-        c = test_img(img2, 1)
-        # print(w*h)
-        img = cv2.rectangle(img, (x, y), (x + w, y + h), (255, 0, 0), 2)
-        img = cv2.putText(img, c, (x, y+h), cv2.FONT_HERSHEY_PLAIN, 2.5, (0, 0, 255), 2)
-
-    else:
-        print("no")
-    cv2.imshow('Face Recognition', img)
-
-    k = cv2.waitKey(30) & 0xff
-    if k == 27: 
-        break
-cap.release()
-cv2.destroyAllWindows()
-
-
-img = cv2.imread("Test/2.jpg")
-img = face_detection3(img)
-if img != -1:
-    img = img[0]    
-    # cv2.imwrite("res.jpg",img)
-    name = test_img(img, 1)
-    print(name)
-else:
-    print("sorry :(")
+# img = cv2.imread("1.jpg")
+# img = face_detection2(img)
+# if img != -1:
+#     img = img[0]    
+#     # cv2.imwrite("res.jpg",img)
+#     name = test_img(img, 1)
+#     print(name)
+# else:
+#     print("sorry :(")

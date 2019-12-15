@@ -29,7 +29,6 @@ def face_detection(image):
     else:
         return -1
 
-@jit
 def face_detection2(image):
 
     image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -69,6 +68,8 @@ def face_detection3(image):
 
 
 # Apply LBP Algorithm on a block of the image
+
+
 def get_lbp_hist(grayscale_img):
     dim = grayscale_img.shape
 
@@ -90,7 +91,7 @@ def get_lbp_hist(grayscale_img):
     return lbp  # <LBP histogram which is a list of 256 numbers>
 
 
-# Segment the image into 7x7 blocks,apply LBP algorithm on them, then Concatente all hitograms into one
+# Segment the image into 10x10 blocks,apply LBP algorithm on them, then Concatente all hitograms into one
 def segment_img(img):
     dim = img.shape
     patch_width = 10
@@ -126,7 +127,7 @@ def train_data():
             img_path = 'training/' + person + '/' + image
             img = cv2.imread(img_path)
             dim = img.shape
-            img = cv2.resize(img, ( int(dim[1]*0.5),int(dim[0]*0.5)))
+            img = cv2.resize(img, ( int(dim[1]*0.3),int(dim[0]*0.3)))
             result = face_detection2(img)
             if result == -1:
                 continue
@@ -206,8 +207,8 @@ def test_img(img, face=-1):
     else:
         return "No Match"
 
-def live_stream():
-    url="http://192.168.1.2:8080/shot.jpg"
+def live_stream(ip):
+    url="http://"+ip+":8080/shot.jpg"
 
     while True:
 
@@ -220,7 +221,7 @@ def live_stream():
         # Decode the array to OpenCV usable format
         img = cv2.imdecode(imgNp,-1)
         dim = img.shape
-        img = cv2.resize(img, (dim[1]*0.5,dim[0]*0.5))
+        img = cv2.resize(img, (dim[1]*0.3,dim[0]*0.3))
 
         # put the image on screen
 
@@ -240,7 +241,7 @@ def live_stream():
             c = test_img(img2, 1)
             # print(w*h)
             img = cv2.rectangle(img, (x, y), (x + w, y + h), (255, 0, 0), 2)
-            img = cv2.putText(img, c, (x, y), cv2.FONT_HERSHEY_PLAIN, 2.5, (0, 0, 255), 2)
+            img = cv2.putText(img, c, (x, y+h), cv2.FONT_HERSHEY_PLAIN, 2.5, (0, 0, 255), 2)
 
         else:
             print("no")
@@ -271,7 +272,7 @@ def get_video(name=-1):
     while (cap.isOpened()):
         ret, img = cap.read()
         dim = img.shape
-        img = cv2.resize(img, ( int(dim[1]*0.5),int(dim[0]*0.5)))
+        img = cv2.resize(img, ( int(dim[1]*0.3),int(dim[0]*0.3)))
             
         #############################################
         # img = rotate(img,270)
@@ -289,7 +290,7 @@ def get_video(name=-1):
             c = test_img(img2, 1)
             # print(w*h)
             img = cv2.rectangle(img, (x, y), (x + w, y + h), (255, 0, 0), 2)
-            img = cv2.putText(img, c, (x, y), cv2.FONT_HERSHEY_PLAIN, 2.5, (0, 0, 255), 2)
+            img = cv2.putText(img, c, (x, y+h), cv2.FONT_HERSHEY_PLAIN, 1.3, (0, 0, 255), 2)
 
         else:
             print("no")
@@ -303,13 +304,12 @@ def get_video(name=-1):
 
 # train_data()
 
-print(type(int(sys.argv[1])))
-
 classes, train_hist, train_labels =read_data()
 
 t = int(sys.argv[1])
 if t == 1:
-    live_stream()
+    ip = sys.argv[2]
+    live_stream(ip)
 elif t == 2:
     name = sys.argv[2]
     get_video(name)
