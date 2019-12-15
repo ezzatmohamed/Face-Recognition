@@ -8,7 +8,7 @@ import glob
 import cv2
 import os
 import csv
-
+from detection import *
 
 
 def face_detection(image):
@@ -20,12 +20,33 @@ def face_detection(image):
         (x, y, w, h) = face[0]
 
         dim = (100, 100)
-        #img = image_gray[y:y + w, x:x + h]
+        # img = image_gray[y:y + w, x:x + h]
         img = image[y:y + w, x:x + h]
-        resized = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
+        resized = img
         return resized, face[0]
     else:
         return -1
+
+def face_detection2(image):
+    # image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    
+    face = segment(image)
+    if face != -1:
+        x = face[0]
+        y = face[1]
+        w = face[2]
+        h = face[3]
+
+        arr = [x,y,w,h]
+
+        #dim = (100, 100)
+        #img = image_gray[y:y + w, x:x + h]
+        img = image[y:y + w, x:x + h]
+        #resized = cv2.resize(img, dim, interpolation=cv2.INTER_AREA)
+        return img,arr
+    else:
+        return -1
+
 
 def displaying_faces_grid(displaying_faces):
     size = 100, 100
@@ -98,11 +119,12 @@ def reading_faces_and_displaying():
         for image in os.listdir('Train/' + person):
             img_path = 'Train/' + person + '/' + image
             img = cv2.imread(img_path)
-    #        result = face_detection(img)
-    #        if result == -1:
-    #            os.remove(img_path)
-    #            continue
-    #        img = result[0]
+            
+            result = face_detection(img)
+            if result == -1:
+                os.remove(img_path)
+                continue
+            #img = result[0]
             os.remove(img_path)
             cv2.imwrite("Train/"+person+"/im" + str(count) + ".jpg", img)
             count+=1
@@ -178,6 +200,7 @@ def class_face(k, test_from_mean, test_flat_images, V, substract_mean_from_origi
         test_weight = np.dot(V[:k, :], test_from_mean[i:i + 1, :].T)
         distances_euclidian = np.sum((eigen_weights - test_weight) ** 2, axis=0)
         image_closest = np.argmin(np.sqrt(distances_euclidian))
+        print(distances_euclidian[image_closest])
         classification = train_labels[image_closest]
         fig, axes_array = plt.subplots(1, 2)
         fig.set_size_inches(5, 5)
@@ -187,7 +210,7 @@ def class_face(k, test_from_mean, test_flat_images, V, substract_mean_from_origi
         #if (distances_euclidian[image_closest] <= threshold):
         #    axes_array[1].imshow(face_array[image_closest, :, :], cmap=plt.cm.gray)
         #axes_array[1].axis('off')
-        print(classification)
+        return classification
     #plt.show()
 
 
@@ -323,29 +346,35 @@ def Recognize(image,V, substract_mean_from_original, mean, train_labels ):
 
     k = 25
 
-    class_face(k, test_from_mean, test_flat_images, V, substract_mean_from_original, train_labels)
+    return class_face(k, test_from_mean, test_flat_images, V, substract_mean_from_original, train_labels)
 
-
-Train()
+# Train()
 
 V, substract_mean_from_original, mean, train_labels = Read_Data()
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture("12.MOV")
 
-while 1:
+while cap.isOpened():
     ret, img = cap.read()
-    res = face_detection(img)
-
+    res = face_detection2(img)
+    ##############################################  
+    (h, w) = img.shape[:2]
+    center = (w / 2, h / 2)
+    scale = 1.0
+    M = cv2.getRotationMatrix2D(center, 270, scale)
+    img = cv2.warpAffine(img, M, (w, h))
+    ##############################################
     if res != -1:
         img2 = res[0]
         face = res[1]
+        #print(face)
         (x, y, w, h) = face
         # if ( w*h < 30000):
         #    continue
         #c = test_img(img2, 1)
-        Recognize(img2,V, substract_mean_from_original, mean, train_labels)
+        name = Recognize(img2,V, substract_mean_from_original, mean, train_labels)
         # print(w*h)
         img = cv2.rectangle(img, (x, y), (x + w, y + h), (255, 0, 0), 2)
-        #img = cv2.putText(img, c, (x, y), cv2.FONT_HERSHEY_PLAIN, 2.5, (0, 0, 255), 2)
+        img = cv2.putText(img, name, (x, y), cv2.FONT_HERSHEY_PLAIN, 2.5, (0, 0, 255), 2)
 
     cv2.imshow('Face Recognition', img)
 
@@ -354,16 +383,16 @@ while 1:
         break
 cap.release()
 cv2.destroyAllWindows()
-#
-
-# img = cv2.imread("Test/1.jpg")
-# Recognize(img)
 
 
-# V,substract_mean_from_original,mean,train_labels = Read_Data()
-# test_flat_images, test_images = reading_test_images()
-# test_from_mean = np.subtract(test_flat_images, mean)
-#
-# k = 25
-#
-# class_face(k, test_from_mean, test_flat_images, V, substract_mean_from_original, train_labels)
+img = cv2.imread("2.jpg")
+img = face_detection(img)
+if img != -1:
+    img = img[0]      
+    # cv2.imwrite("res.jpg",img)
+    name = Recognize(img,V, substract_mean_from_original, mean, train_labels)
+    print(name)
+else:
+    print("sorry :(")
+
+
