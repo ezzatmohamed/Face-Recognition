@@ -113,7 +113,7 @@ def segment_img(img):
 
 
 def train_data():
-    filename = "training.csv"
+    filename = "training2.csv"
     file = open(filename, "w")
     csvwriter = csv.writer(file)
 
@@ -125,7 +125,7 @@ def train_data():
             img_path = 'training/' + person + '/' + image
             img = cv2.imread(img_path)
             dim = img.shape
-            img = cv2.resize(img, ( int(dim[1]*0.3),int(dim[0]*0.3)))
+            # img = cv2.resize(img, ( int(dim[1]*0.3),int(dim[0]*0.3)))
             result = face_detection2(img)
             if result == -1:
                 continue
@@ -145,7 +145,7 @@ def read_data():
     train_hist = []
     train_labels = []
 
-    file = open("training.csv", "r")
+    file = open("training2.csv", "r")
     lines = file.readlines()
     for l in lines:
         line = l.split(',')
@@ -219,7 +219,7 @@ def live_stream():
         # Decode the array to OpenCV usable format
         img = cv2.imdecode(imgNp,-1)
         dim = img.shape
-        img = cv2.resize(img, (dim[1]*0.3,dim[0]*0.3))
+        # img = cv2.resize(img, (dim[1]*0.3,dim[0]*0.3))
 
         # put the image on screen
 
@@ -227,7 +227,7 @@ def live_stream():
         # img = rotate(img,270)
         ##############################################
         try:
-            res = face_detection3(img)
+            res = face_detection(img)
         except:
             break
         # res = -1
@@ -270,13 +270,13 @@ def get_video(name=-1):
     while (cap.isOpened()):
         ret, img = cap.read()
         dim = img.shape
-        img = cv2.resize(img, ( int(dim[1]*0.3),int(dim[0]*0.3)))
+        # img = cv2.resize(img, ( int(dim[1]*0.3),int(dim[0]*0.3)))
             
         #############################################
         # img = rotate(img,270)
         ##############################################
         try:
-            res = face_detection3(img)
+            res = face_detection(img)
         except:
             break
         # res = -1
@@ -312,13 +312,3 @@ elif t == 2:
     get_video(name)
 elif t== 3:
     get_video()
-
-# img = cv2.imread("1.jpg")
-# img = face_detection2(img)
-# if img != -1:
-#     img = img[0]    
-#     # cv2.imwrite("res.jpg",img)
-#     name = test_img(img, 1)
-#     print(name)
-# else:
-#     print("sorry :(")

@@ -127,7 +127,7 @@ def train_data():
             img_path = 'training/' + person + '/' + image
             img = cv2.imread(img_path)
             dim = img.shape
-            img = cv2.resize(img, ( int(dim[1]*0.3),int(dim[0]*0.3)))
+            img = cv2.resize(img, ( int(dim[1]*0.4),int(dim[0]*0.4)))
             result = face_detection2(img)
             if result == -1:
                 continue
@@ -221,7 +221,7 @@ def live_stream(ip):
         # Decode the array to OpenCV usable format
         img = cv2.imdecode(imgNp,-1)
         dim = img.shape
-        img = cv2.resize(img, (dim[1]*0.3,dim[0]*0.3))
+        img = cv2.resize(img, (dim[1]*0.4,dim[0]*0.4))
 
         # put the image on screen
 
@@ -272,7 +272,7 @@ def get_video(name=-1):
     while (cap.isOpened()):
         ret, img = cap.read()
         dim = img.shape
-        img = cv2.resize(img, ( int(dim[1]*0.3),int(dim[0]*0.3)))
+        img = cv2.resize(img, ( int(dim[1]*0.4),int(dim[0]*0.4)))
             
         #############################################
         # img = rotate(img,270)

@@ -52,9 +52,7 @@
         </p>
         <hr class="my-4" />
         <p>
-          It uses HOG Classifier for Face Detection and Skin Segmentation BLA
-          BLA. For Face Recognition, it uses LBP Algorithm and classifies Faces
-          accordingly.
+
         </p>
         <p class="lead">
           <a

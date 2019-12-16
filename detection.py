@@ -1,5 +1,9 @@
 import cv2
 import numpy as np
+import math
+from numba import jit,cuda
+from skimage.color import rgb2hsv,rgb2ycbcr
+
 def bwperim(bw, n=4):
     """
     perim = bwperim(bw, n=4)
@@ -49,129 +53,360 @@ def bwperim(bw, n=4):
                (south_west == bw) & \
                (north_west == bw)
     return ~idx * bw
-def imageEnhance(img):
-    r=img[:,:,2]
-    g=img[:,:,1]
 
-    ycrcb=cv2.cvtColor(img,cv2.COLOR_BGR2YCR_CB)
-    y=ycrcb[:,:,0]
 
-    ymax=np.max(y)
-    ymin=np.min(y)
+def Histogram(image):
+    histo = np.zeros(256)
+    for i in range(len(image)):
+        for j in range(len(image[0])):
+            histo[image[i, j]] += 1
 
-    y=255*((y-ymin)/(ymax-ymin))
-    yavg=np.average(y)
-    print (yavg)
-    T=1
-    if yavg<64:
-        T=1.4
-    if yavg>192:
-        T=0.6
-    newimg=np.copy(img)
-    Rnew=np.power(r,T)
-    Gnew=np.power(g,T)
-    newimg[:,:,2]=Rnew
-    newimg[:,:,1]=Gnew
+    return histo
 
-    r=newimg[:,:,2]
-    g=newimg[:,:,1]
-    b=newimg[:,:,0]
 
-    ycbcr=cv2.cvtColor(newimg,cv2.COLOR_BGR2YCR_CB)
-    y=ycrcb[:,:,0]
-    cr=ycrcb[:,:,1]
-    cb=ycrcb[:,:,2]
+def getImageWithHist(img,nbins=256):
+    return img
+    gray = img
+    h = Histogram(gray)
+    H_c = np.zeros(256)
+    H_c[0] = h[0]
+    En = np.copy(gray)
+    for i in range(1, len(h)):
+        H_c[i] = H_c[i - 1] + h[i]
 
-    hsv=cv2.cvtColor(newimg,cv2.COLOR_BGR2HSV)
+    q = np.round((nbins - 1) * H_c / (len(gray) * len(gray[0])))
+    for i in range(len(gray)):
+        for j in range(len(gray[0])):
+            En[i, j] = q[gray[i, j]]
+    return En
+
+
+def segment(img):
+    B=img[:,:,0]
+    G=img[:,:,1]
+    R=img[:,:,2]
+    gray=cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+
+
+
+    #cv2.imshow('detected circles', img)
+
+
+    hsv=cv2.cvtColor(img,cv2.COLOR_BGR2HSV)
     h=hsv[:,:,0]
     s=hsv[:,:,1]
     v=hsv[:,:,2]
 
+    Y=0.299*R+0.587*G+0.114*B
+    Cb=(B-Y)*0.564+128
+    Cr=(R-Y)*0.713+128
 
-    mask=(r>150) & (g>60) & (b>100) & (abs(r-g)>=30)  & (r>g) & (r>b)
-    mask2=(cb>=90) & (cb<=135)& (cr>140) & (cr<165)
-    mask3=((h>0) & (h<35/2)) | ((h>300/2) & (h<360/2)) & (s/255>0.2) &(s/255<0.6)
-    skin=np.zeros((len(img),len(img[0])))
-    skin[(mask2) & (mask3)]=1
-    r[skin==0]=0
-    g[skin==0]=0
-    b[skin==0]=0
+    lab=cv2.cvtColor(img,cv2.COLOR_BGR2LAB)
+    l = lab[:,:,0]
+    a = lab[:,:,1]
+    b = lab[:,:,2]
 
-    # cv2.imshow("skin", skin)
+    Skin=np.zeros((len(img),len(img[0])))
+    length=len(img)
+    width=len(img[0])
+    size=length*width
 
-    newimg=cv2.medianBlur(newimg,21)
-    gray=cv2.cvtColor(newimg,cv2.COLOR_BGR2GRAY)
-    gray[gray>0]=255
+    gray=cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+
+    Cbs=Cb**2
+    maxCb=np.max(Cbs)
+    minCb=np.min(Cbs)
+    Cbs=(Cbs-minCb)/(maxCb-minCb)*255
+
+    CrInv=255-Cr
+    CrInv = CrInv ** 2
+    maxCrI = np.max(CrInv)
+    minCrI = np.min(CrInv)
+    CrInv = (CrInv - minCrI) / (maxCrI - minCrI) * 255
+
+    CbCr = Cb/Cr
+    maxCbCr = np.max(CbCr)
+    minCbCr = np.min(CbCr)
+    CbCr = (CbCr - minCbCr) / (maxCbCr - minCbCr) * 255
+
+    Crs=Cr**2
+    maxCr = np.max(Crs)
+    minCr = np.min(Crs)
+    Crs = (Crs - minCr) / (maxCr - minCr) * 255
+
+    CrCb = Cr / Cb
+    maxCrCb = np.max(CrCb)
+    minCrCb = np.min(CrCb)
+    CrCb = (CrCb - minCrCb) / (maxCrCb - minCrCb) * 255
 
 
-    cv2.imshow("skin", gray)
+    sumCrs=np.sum(Crs)
+    sumCrCb=np.sum(CrCb)
+
+    n=0.95* sumCrs/(sumCrCb)
+
+    diff=Crs*(Crs-n*CrCb)
+    diff[diff<0]=0
+
+    MouthMap=diff
+    maxMmap=np.max(MouthMap)
+    minMmap=np.min(MouthMap)
+    MouthMap=(MouthMap-minMmap)/(maxMmap-minMmap )*255
+    MouthMap=MouthMap.astype(np.uint8)
+    maxMouthMap=np.max(MouthMap)
+    EyeMapC=np.round((1/3)*(Cbs+CrInv+CbCr)).astype(np.uint8)
+    e=getImageWithHist(EyeMapC)
+
+    kernel = np.ones((10,10))
+    Ydil = cv2.dilate(Y, kernel, iterations=1)
+    Yer = cv2.erode(Y, kernel, iterations=1)
+
+    EyeMapL=(10*(Ydil/(1+0.1*Yer))).astype(np.uint8)
+
+    EyeMap=np.zeros((length,width))
+    for i in range(len(EyeMapL)):
+        for j in range(len(EyeMapL[0])):
+            EyeMap[i,j]=min([EyeMapL[i,j],EyeMapC[i,j]])
+
+    EyeMap=EyeMap.astype(np.uint8)
+
+    sigma = np.sqrt(size)/24
+
+    Cr[Cr<135]=-1
+    Cr[Cr>135]=1
+
+    Cb[Cb<85]=-3
+    Cb[Cb>85]=1
+
+    h[h>=0]=1
+    h[h>50]=-9
+
+    s[s>=0.1*255]=1
+    s[s>0.9*255]=-12
+
+    Ta=cv2.threshold(a, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    Tb=cv2.threshold(b, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
 
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (21, 21))
-    skin = cv2.dilate(gray, kernel, iterations=3)
+    Skin[Cr-Cb-s==-1]=1
+
+    #Skin=Ta[1] * Tb[1] * 255
+
+    kernel=np.ones((11,7))
+    Skin=cv2.erode(Skin,kernel,iterations=1)
+    kernel = np.ones((21,11))
+    Skin = cv2.dilate(Skin, kernel, iterations=2)
+
+    Skin=Skin.astype(np.uint8)*255
 
 
 
 
 
-    output = cv2.connectedComponentsWithStats(skin, 4)
+    output = cv2.connectedComponentsWithStats(Skin, 4)
+
+
+
     num_labels = output[0]
     labels = output[1]
     stats = output[2]
-    centroids=output[3]
+
+    if num_labels>0:
+        area=0
+        index=0
+        for i in range(1, labels.max() + 1):
+            if stats[i,cv2.CC_STAT_AREA]>area:
+                area=stats[i,cv2.CC_STAT_AREA]
+                index= i
+        '''
+        comps=[]
+        for i in range(num_labels):
+            comps.append([])
+        for i in range(length):
+            for j in range(width):
+                comps[labels[i,j]].append(gray[i,j])
+        stds=[]
+        for i in range(1,len(comps)):
+            stds.append(np.std(comps[i]))
+        '''
 
 
-    for i in range(1, labels.max() + 1):
-        width=stats[i,cv2.CC_STAT_WIDTH]
-        height=stats[i,cv2.CC_STAT_HEIGHT]
-        area=stats[i,cv2.CC_STAT_AREA]
-        areRec=width*height
-        x,y=centroids[i]
-        minorAxis=x+width/2
-        majorAxis=y+height/2
-        ecc=minorAxis/majorAxis
-        ratArea = area / areRec
-        ratio=width/height
-        pts = np.where(labels == i)
-        print(len(pts[0]))
-        if len(pts[0]) < 1500:
-            labels[pts] = 0
+        #if area>39000:
+        #index=np.argmax(stds)+1
+        labels[labels!=index]=0
+        label_hue = np.uint8(179 * labels / np.max(labels))
+        blank_ch = 255 * np.ones_like(label_hue)
+        labeled_img = cv2.merge([label_hue, blank_ch, blank_ch])
+        labeled_img = cv2.cvtColor(labeled_img, cv2.COLOR_HSV2BGR)
+        labeled_img[label_hue == 0] = 0
 
-    label_hue = np.uint8(179 * labels / np.max(labels))
-    blank_ch = 255 * np.ones_like(label_hue)
-    labeled_img = cv2.merge([label_hue, blank_ch, blank_ch])
-    labeled_img = cv2.cvtColor(labeled_img, cv2.COLOR_HSV2BGR)
-    labeled_img[label_hue == 0] = 0
-    # cv2.imshow("new2", labeled_img)
+        x = stats[index, cv2.CC_STAT_LEFT]
+        y = stats[index, cv2.CC_STAT_TOP]
+        w = stats[index, cv2.CC_STAT_WIDTH]
+        h = stats[index, cv2.CC_STAT_HEIGHT]
 
-    gray = cv2.cvtColor(labeled_img, cv2.COLOR_BGR2GRAY)
-    gray[gray > 0] = 255
-    gray = cv2.erode(gray, kernel, iterations=1)
+        co=np.copy(img)
+        co[labeled_img[:,:,0]==0]=0
+        gray=cv2.cvtColor(co,cv2.COLOR_BGR2GRAY)
 
+        kernel = np.ones((21, 21))
+        labeled_img = cv2.dilate(labeled_img, kernel, iterations=3)
+        #kernel = np.ones((21, 21))
+        labeled_img = cv2.erode(labeled_img, kernel, iterations=3)
 
-    output = cv2.connectedComponentsWithStats(gray, 4)
-    num_labels = labels[0]
-    labels = output[1]
-    stats = output[2]
+        c = 0
 
-    area = 0
-    index = 0
-    for i in range(1, labels.max() + 1):
-        if stats[i, cv2.CC_STAT_AREA] > area:
-            area = stats[i, cv2.CC_STAT_AREA]
-            index = i
+        e[labeled_img[:, :, 0] == 0] = 0
+        EyeMap[labeled_img[:, :, 0] == 0] = 0
+        MouthMap[labeled_img[:, :, 0] == 0] = 0
 
-    x = stats[index, cv2.CC_STAT_LEFT]
-    y = stats[index, cv2.CC_STAT_TOP]
-    w = stats[index, cv2.CC_STAT_WIDTH]
-    h = stats[index, cv2.CC_STAT_HEIGHT]
-    #cv2.rectangle(img, (x,- y), (x + w, y + h), (255, 0, 0), 2)
-    cv2.imshow("sd",labeled_img)
-    side=max(w,h)
-    return x,y,side,side
+        kernel = np.ones((21, 21))
+        #MouthMap = cv2.erode(MouthMap, kernel, iterations=1)
+        #MouthMap = cv2.dilate(MouthMap, kernel, iterations=1)
 
-# img=cv2.imread("im1.jpg")
-# #img=cv2.resize(img,(500,500))
-# imageEnhance(img)
+        maxMouthMap=np.max(MouthMap)
+        MMMin= np.unravel_index(np.argmax(MouthMap, axis=None), MouthMap.shape)
+        cv2.circle(img, (MMMin[1], MMMin[0]), 60, (0, 255, 255), 2)
+        # draw the center of the circle
+        cv2.circle(img, (MMMin[1], MMMin[0]), 2, (0, 255, 255), 3)
 
 
+        edges = cv2.Canny(e,250,260)
+
+        edges[labeled_img[:,:,0]==0]=0
+
+        circles = cv2.HoughCircles(EyeMap, cv2.HOUGH_GRADIENT, 1, 10,
+                                   param1=40, param2=40,minRadius=1, maxRadius=50)
+        dots=[]
+        if circles is not None:
+            circles = np.uint16(np.around(circles))
+            perW = 0.1
+            perH = 0.05
+            for i in circles[0, :]:
+                if (EyeMap[i[1]-1, i[0]-1] > 80) and (i[1]<y+h/2):
+
+                    dots.append((i[0],i[1]))
+                    c += 1
+                    # draw the outer circle
+                    cv2.circle(img, (i[0], i[1]), i[2], (0, 255, 0), 2)
+                    # draw the center of the circle
+                    cv2.circle(img, (i[0], i[1]), 2, (0, 0, 255), 3)
+
+
+
+
+        if c > 0:
+            mdist=0
+            mindist=1000
+            l=0
+            di=(0,0)
+            dj=(0,0)
+            Sm=0
+            if len(dots)>1:
+
+                for i in range(len(dots)):
+                    for j in range(i+1,len(dots)):
+                        x2=dots[j][0]
+                        x1=dots[i][0]
+                        y2=dots[j][1]
+                        y1=dots[i][1]
+                        dx=int(x2)-int(x1)
+                        dy=int(y2)-int(y1)
+
+                        l = math.sqrt((dx)**2 + (dy)**2)
+                        x = max([min([x2,x1]) - int(0.75 * l), 0])
+                        y = max([min([y1, y2]) - int(1.5 * l), 0])
+                        h = int(4 * l)
+                        w = int(3 * l)
+
+                        midx=int((x1+x2)/2)
+                        midy=int((y1+y2)/2)
+                        mouth=MouthMap[midy:int(y+0.75*h)-1,midx-1]
+                        sm=np.sum(mouth)
+                        mm=np.max(mouth)
+                        mindexX=np.argmax(mouth)+midy
+                        mindexY=midx
+                        botMmap=MouthMap[y+int(h/2):y+h-1,:]
+                        topMmap=MouthMap[y:y+int(h/2)-1,:]
+                        STop=np.sum(topMmap)
+                        SBot=np.sum(botMmap)
+                        if dx==0:
+                            dx=0.1
+                        MDist1=math.sqrt(((int(MMMin[1])-int(y1))**2+(int(MMMin[0])-int(x1))**2))
+                        MDist2=math.sqrt(((int(MMMin[1])-int(y2))**2+(int(MMMin[0])-int(x2))**2))
+                        print(l,mindist,dy/dx,mm,)
+                        if l<mindist and l>70 and -1<dy/dx<1 and labeled_img[midy,midx,0]!=0 and mm>50 and SBot>STop:
+                            cv2.circle(img, (mindexY, mindexX), 60, (123, 45, 80), 2)
+                            # draw the center of the circle
+                            cv2.circle(img, (mindexY, mindexX), 2, (0, 0, 255), 3)
+                            di=dots[i]
+                            dj=dots[j]
+                            mindist=l
+                            Sm=sm
+
+
+
+                if mindist<500:
+                    cv2.line(img, di, dj, (0, 0, 255), 2)  # line between eyes
+                    mx=int((di[0]+dj[0])/2)
+                    my=int((di[1]+dj[1])/2)
+
+                    cv2.circle(img, (mx, my), 60, (0, 255, 255), 2)
+                    # draw the center of the circle
+                    cv2.circle(img, (mx, my), 2, (0, 255, 255), 3)
+                    x=max([min([di[0],dj[0]])-int(0.75*mindist),0])
+                    y=max([min([di[1],dj[1]])-int(1.5*mindist),0])
+                    h=int(3.5*mindist)
+                    w=int(2.75*mindist)
+
+                    cv2.line(img, (mx, my), (mx, y + h), (0, 0, 255), 2)
+
+                    im=gray[y:y+h,x:x+w]
+
+                    myradians = math.atan2(int(dj[1])-int(di[1]), int(dj[0])-int(di[0]))
+                    mydegrees=math.degrees(myradians)
+                    image_center = tuple(np.array(im.shape[1::-1]) / 2)
+                    rot_mat = cv2.getRotationMatrix2D(image_center, mydegrees, 1.0)
+                    rot = cv2.warpAffine(im, rot_mat, im.shape[1::-1], flags=cv2.INTER_LINEAR)
+
+                    flip=cv2.flip(rot,1)
+                    sym=0
+                    for i in range(len(rot)):
+                        for j in range(len(rot[0])):
+                            if -40<int(rot[i,j])-int(flip[i,j])<40:
+                                sym+=1
+                    sym=sym/(len(rot)*len(rot[0]))*100
+                    st=np.std(rot)
+
+                    if 20<sym<90 :
+                        return x,y,w,h
+    return -1
+        # #cv2.imshow("lol2", edges)
+        # cv2.imshow("lol", img)
+        # #cv2.imshow("L", EyeMapL)
+        # #cv2.imshow("C", EyeMapC)
+        # cv2.imshow("E", EyeMap)
+        # cv2.imshow("M", MouthMap)
+    #cv2.imshow("lol2", comps[index])
+
+
+
+# '''
+# img=cv2.imread("training/Amin/Amin (2).jpeg")
+
+# segment(cv2.resize(img,(500,500)))
+
+# cv2.waitKey(0)
+# cv2.destroyAllWindows()
+# '''
+# cap=cv2.VideoCapture(0)
+
+# while True:
+#     _, img = cap.read()
+#     segment(img)
+
+#     k = cv2.waitKey(30) & 0xff
+#     if k == 27:
+#         break
+# # Release the VideoCapture object
+# cap.release()

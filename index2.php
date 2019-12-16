@@ -52,9 +52,7 @@
         </p>
         <hr class="my-4" />
         <p>
-          It uses HOG Classifier for Face Detection and Skin Segmentation BLA
-          BLA. For Face Recognition, it uses LBP Algorithm and classifies Faces
-          accordingly.
+
         </p>
         <p class="lead">
           <a
@@ -64,7 +62,7 @@
             >Learn more</a
           >
         </p>
-        <form method="GET" action="index.php">
+        <form method="GET" action="index2.php">
 
           <input name="ip" type="text" placeholder="Enter IP"><br><br>
 
@@ -75,7 +73,7 @@
         <br>
         
 
-        <form method="GET" action="index.php">
+        <form method="GET" action="index2.php">
 
           <input name="name" type="text" placeholder="Enter Filename"><br><br>
 
@@ -85,7 +83,7 @@
         <p class="lead">
           <a 
             class="btn btn-primary btn-lg"
-            href="index.php?web=True"
+            href="index2.php?web=True"
             role="button"
             >Test With Webcam</a
           >
